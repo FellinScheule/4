@@ -1,0 +1,124 @@
+module test;
+
+reg reset, clk;
+
+wire [7:0]char_count;
+wire [11:0]line_count;
+wire hsync;
+wire vsync;
+wire visible;
+
+//это экземпляр модуля генерации синхросигналов видео
+hvsync hvsync_inst(
+    reset,
+    clk,
+    char_count[7:0],
+    line_count[11:0],
+    hsync,
+    vsync,
+    visible
+    );
+
+//это регистр меняя значения которого мы симулируем нажатие кнопок
+reg [3:0]key;
+
+//это выходы видео
+wire video,video_r,video_g,video_b;
+
+//это счет игры, играем до 15 (4'b1111 в двоичном виде)
+wire [7:0]goals;
+
+//это экземпляр модуля игры "теннис"
+game game_inst(
+    reset,
+    clk,
+    vsync,
+    key,
+
+    char_count,
+    line_count,
+    visible,
+
+    video,
+    video_r,
+    video_g,
+    video_b,
+    goals
+    );
+
+//генерируем тактовую частоту
+initial
+    clk = 0;
+
+always
+    #100 clk = ~clk;
+
+//начинаем симуляцию модулей от момента времени ноль
+initial
+begin
+    //сброс схемы сигналом reset и
+    //иммитируем начало игры нажимая все 4 кнопочки на плате 
+    reset = 1'b1;
+    key = 4'b0000;
+    nframe = 0;
+    #10;
+    //схема сброшена
+    reset = 1'b0;
+    //иммитируем нажатие только одной кнопки key[3]
+    key = 4'b0111;
+end
+
+//номер видеокадра - будем отображать в симуляции только каждый четвертый кадр
+reg [1:0]nframe;
+
+//следим за видеосигналом и выводим в консоль символы о цвете 
+always @(posedge clk)
+begin
+    //на интересна только видимая область видеосигнала (строки до 600)
+    //кроме этого, отображаем только каждую 16ю строку
+    //и только каждый 4й кадр
+  if(line_count<600 && line_count[3:0]==0 && nframe==2'b11)
+  begin
+    //отображаем только видимую область видеосигнала
+    //колонки только до 100й
+    if(char_count<100)
+    begin
+        if(video_r)
+       $write("*");    //если красный цвет - рисуем "*"
+    else
+        if(video_g)
+       $write("#"); //если зеленый цвет - рисуем "#"
+    else
+       $write(" "); //другой цвет - пробел
+    end
+    else
+    if(char_count==100)
+    begin
+    //конец строки помечаем такой "палочкой"
+    $display("|"); 
+    end
+  end
+  else
+  if(char_count==100 && line_count==600)
+  begin
+    //конец кадра
+    $display("");
+    nframe = nframe + 1;
+  end
+end
+
+initial
+begin
+    //завершаем симуляцию через много времени
+    #400000000 $finish;
+end
+
+/*
+initial
+begin
+    $dumpfile("out.vcd");
+    $dumpvars(0,test);
+end
+*/
+    
+endmodule
